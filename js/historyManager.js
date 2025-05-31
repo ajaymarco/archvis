@@ -11,19 +11,19 @@ let uiManagerInstance;    // To update undo/redo buttons
 export function initHistoryManager(sceneApi, uiApi) {
     sceneManagerInstance = sceneApi;
     uiManagerInstance = uiApi;
-    clearHistoryAndSaveInitialState(sceneManagerInstance.getCurrentSceneState()); // Start with current (likely empty) scene state
+    // Initialize with current scene state from sceneManager, ensuring it's a string
+    const initialState = sceneManagerInstance.getCurrentSceneState();
+    clearHistoryAndSaveInitialState(typeof initialState === 'string' ? initialState : JSON.stringify(initialState));
     console.log("HistoryManager initialized and initial state saved.");
 }
 
 export function saveState(stateString) {
-    // If stateString is null or undefined, don't save.
     if (stateString === null || typeof stateString === 'undefined') {
         console.warn("HistoryManager: Attempted to save a null or undefined state.");
         return;
     }
-    // Prevent saving identical consecutive states
-    if (historyStates.length > 0 && currentIndex >=0 && historyStates[currentIndex] === stateString) {
-        console.log("History: State identical to current, not saving.");
+    if (historyStates.length > 0 && currentIndex >=0 && currentIndex < historyStates.length && historyStates[currentIndex] === stateString) {
+        // console.log("History: State identical to current, not saving."); // Can be noisy
         return;
     }
 
@@ -32,11 +32,11 @@ export function saveState(stateString) {
     }
 
     historyStates.push(stateString);
-    currentIndex++; // Increment current index as new state is pushed
+    currentIndex++;
 
     if (historyStates.length > MAX_HISTORY_STATES) {
         historyStates.shift();
-        currentIndex--; // Adjust index because the array was shifted
+        currentIndex--;
     }
 
     if (uiManagerInstance && uiManagerInstance.updateUndoRedoButtons) {
@@ -51,15 +51,16 @@ export function undo() {
         const stateToApply = historyStates[currentIndex];
         console.log(`History: Undo. Index: ${currentIndex}, Total: ${historyStates.length}`);
         if (sceneManagerInstance && sceneManagerInstance.applySceneState) {
-            sceneManagerInstance.applySceneState(stateToApply, false); // false: applying history state, don't re-save
+            sceneManagerInstance.applySceneState(stateToApply, true); // Pass true: this state is from history
         }
         if (uiManagerInstance && uiManagerInstance.updateUndoRedoButtons) {
             uiManagerInstance.updateUndoRedoButtons(canUndo(), canRedo());
         }
-        return stateToApply; // Though main.js might not use the return value if applySceneState is called here
+        // return stateToApply; // Not strictly needed if applySceneState is called here
+    } else {
+        console.log("History: Cannot undo.");
     }
-    console.log("History: Cannot undo.");
-    return null;
+    return null; // Or return stateToApply if the caller needs it for some reason
 }
 
 export function redo() {
@@ -68,14 +69,15 @@ export function redo() {
         const stateToApply = historyStates[currentIndex];
         console.log(`History: Redo. Index: ${currentIndex}, Total: ${historyStates.length}`);
          if (sceneManagerInstance && sceneManagerInstance.applySceneState) {
-            sceneManagerInstance.applySceneState(stateToApply, false); // false: applying history state, don't re-save
+            sceneManagerInstance.applySceneState(stateToApply, true); // Pass true: this state is from history
         }
         if (uiManagerInstance && uiManagerInstance.updateUndoRedoButtons) {
             uiManagerInstance.updateUndoRedoButtons(canUndo(), canRedo());
         }
-        return stateToApply;
+        // return stateToApply;
+    } else {
+        console.log("History: Cannot redo.");
     }
-    console.log("History: Cannot redo.");
     return null;
 }
 
@@ -87,7 +89,7 @@ export function canRedo() {
     return currentIndex < historyStates.length - 1;
 }
 
-export function clearHistory() { // Might not be used if clearHistoryAndSaveInitialState is preferred
+export function clearHistory() {
     historyStates = [];
     currentIndex = -1;
     if (uiManagerInstance && uiManagerInstance.updateUndoRedoButtons) {
@@ -98,8 +100,8 @@ export function clearHistory() { // Might not be used if clearHistoryAndSaveInit
 
 export function clearHistoryAndSaveInitialState(initialStateString) {
     if (initialStateString === null || typeof initialStateString === 'undefined') {
-        console.error("HistoryManager: Attempted to initialize with a null or undefined state.");
-        historyStates = [];
+        console.error("HistoryManager: Attempted to initialize with a null or undefined state string.");
+        historyStates = []; // Ensure it's an array
         currentIndex = -1;
     } else {
         historyStates = [initialStateString];
@@ -112,4 +114,4 @@ export function clearHistoryAndSaveInitialState(initialStateString) {
     console.log("History: Cleared and initial state processed.");
 }
 
-console.log("historyManager.js loaded.");
+console.log("historyManager.js loaded and updated for applySceneState flag.");
